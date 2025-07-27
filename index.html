@@ -1,23 +1,20 @@
-
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <title>המרת קישור מגוגל ל־ITM מדויק</title>
+  <title>המרת קישור גוגל ל-ITM מדויק</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
-    input, button { font-size: 16px; padding: 10px; width: 100%; margin-top: 10px; }
-    #output { background: white; margin-top: 20px; padding: 15px; border: 1px solid #ccc; }
-    a { color: blue; }
+    body { font-family: Arial; background: #f5f5f5; padding: 20px; direction: rtl; }
+    input, button { padding: 10px; font-size: 16px; width: 100%; margin-top: 10px; }
+    #output { margin-top: 20px; background: #fff; padding: 15px; border: 1px solid #ccc; }
+    a { color: #007bff; }
   </style>
 </head>
 <body>
-
-<h2>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</h2>
-<input type="text" id="mapUrl" placeholder="הדבק כאן קישור מגוגל מפות">
-<button onclick="convert()">המר</button>
-
-<div id="output"></div>
+  <h2>המרת קישור מ-Google Maps לקואורדינטות ITM</h2>
+  <input type="text" id="mapUrl" placeholder="הדבק כאן קישור מגוגל מפות">
+  <button onclick="convert()">המר</button>
+  <div id="output"></div>
 
 <script>
 function extractLatLng(url) {
@@ -31,12 +28,10 @@ function extractLatLng(url) {
 }
 
 function latlng2itm(lat, lon) {
-  // נוסחת צביקה בהט
   const deg2rad = Math.PI / 180;
-  const a = 6378137;
-  const b = 6356752.3141;
+  const a = 6378137, b = 6356752.3141;
   const f = (a - b) / a;
-  const e2 = 2 * f - f * f;
+  const e2 = 2*f - f*f;
   const lon0 = 35.20451694444445;
   const lat0 = 31.73439361111111;
   const k0 = 1.0000067;
@@ -53,14 +48,17 @@ function latlng2itm(lat, lon) {
   const C = e2 / (1 - e2) * Math.cos(φ) ** 2;
   const A = (λ - λ0) * Math.cos(φ);
 
-  const M1 = (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256) * φ;
-  const M2 = (3 * e2 / 8 + 3 * e2**2 / 32 + 45 * e2**3 / 1024) * Math.sin(2 * φ);
-  const M3 = (15 * e2**2 / 256 + 45 * e2**3 / 1024) * Math.sin(4 * φ);
-  const M4 = (35 * e2**3 / 3072) * Math.sin(6 * φ);
+  const M1 = (1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * φ;
+  const M2 = (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * φ);
+  const M3 = (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * φ);
+  const M4 = (35 * e2 ** 3 / 3072) * Math.sin(6 * φ);
   const M = a * (M1 - M2 + M3 - M4);
 
-  const x = falseE + k0 * N * (A + (1 - T + C) * A**3 / 6 + (5 - 18*T + T**2 + 72*C - 58*e2/(1-e2)) * A**5 / 120);
-  const y = falseN + k0 * (M - 0 + N * Math.tan(φ) * (A**2 / 2 + (5 - T + 9*C + 4*C**2) * A**4 / 24 + (61 - 58*T + T**2 + 600*C - 330*e2/(1-e2)) * A**6 / 720));
+  const x = falseE + k0 * N * (A + (1 - T + C) * A**3 / 6 +
+    (5 - 18 * T + T**2 + 72 * C - 58 * e2 / (1 - e2)) * A**5 / 120);
+  const y = falseN + k0 * (M + N * Math.tan(φ) * (A**2 / 2 +
+    (5 - T + 9 * C + 4 * C**2) * A**4 / 24 +
+    (61 - 58 * T + T**2 + 600 * C - 330 * e2 / (1 - e2)) * A**6 / 720));
 
   return { x: Math.round(x), y: Math.round(y) };
 }
@@ -76,14 +74,14 @@ function convert() {
   }
 
   const itm = latlng2itm(coords.lat, coords.lng);
-  const govmapLink = `https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=10`;
+  const govmapUrl = `https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=10`;
 
   output.innerHTML = `
     <p><strong>קו רוחב:</strong> ${coords.lat}</p>
     <p><strong>קו אורך:</strong> ${coords.lng}</p>
     <p><strong>ITM X:</strong> ${itm.x}</p>
     <p><strong>ITM Y:</strong> ${itm.y}</p>
-    <p><a href="${govmapLink}" target="_blank">פתיחה ב־GovMap</a></p>
+    <p><a href="${govmapUrl}" target="_blank">פתיחה ב-GovMap</a></p>
   `;
 }
 </script>
