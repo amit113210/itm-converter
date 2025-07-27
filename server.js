@@ -1,19 +1,16 @@
 const express = require('express');
 const cors = require('cors');
-const app = express();
 const axios = require('axios');
+const { convertLatLonToITM } = require('./convert');
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ברירת מחדל - עמוד סטטי למשל index.html אם יש לך
-app.use(express.static('public'));
-
 app.get('/', (req, res) => {
-  res.send('שרת פועל!');
+  res.send('שרת פועל');
 });
 
-// דוגמה לנקודת קצה להמרה בעתיד
 app.post('/convert', async (req, res) => {
   const { lat, lon } = req.body;
   if (!lat || !lon) {
@@ -21,10 +18,10 @@ app.post('/convert', async (req, res) => {
   }
 
   try {
-    // כאן אפשר להטמיע בקשת המרה או להשתמש בספריית המרה מקומית
-    res.json({ itmX: 999999, itmY: 888888 });
+    const { x, y } = convertLatLonToITM(lat, lon);
+    res.json({ itmX: x, itmY: y });
   } catch (e) {
-    res.status(500).json({ error: 'שגיאת שרת' });
+    res.status(500).json({ error: 'שגיאה בהמרה' });
   }
 });
 
