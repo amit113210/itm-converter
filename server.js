@@ -1,30 +1,31 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
+const express = require("express");
+const cors = require("cors");
+const proj4 = require("proj4");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+app.use(express.json()); // 👈 חובה בשביל לקבל JSON כמו שצריך
 
-app.post('/convert', async (req, res) => {
-  const { lat, lon } = req.body;
-  if (!lat || !lon) return res.status(400).json({ error: 'Missing lat/lon' });
+const port = process.env.PORT || 10000;
+
+const WGS84 = "EPSG:4326";
+const ITM = "+proj=tmerc +lat_0=31.7343936111111 +lon_0=35.2045169444444 +k=1.0000067 +x_0=219529.584 +y_0=626907.39 +ellps=GRS80 +units=m +no_defs";
+
+app.post("/convert", (req, res) => {
+  const { lat, lng } = req.body;
+
+  if (typeof lat !== "number" || typeof lng !== "number") {
+    return res.status(400).json({ error: "Missing or invalid lat/lng" });
+  }
 
   try {
-    const url = `https://poshmap.co.il/itmconverter_ashx?lat=${lat}&lon=${lon}`;
-    const response = await axios.get(url);
-    const match = response.data.match(/ITM X = (\d+)<br>ITM Y = (\d+)/);
-
-    if (!match) throw new Error('לא נמצאו תוצאות');
-
-    res.json({ itm_x: match[1], itm_y: match[2] });
+    const [itm_x, itm_y] = proj4(WGS84, ITM, [lng, lat]);
+    res.json({ itm_x, itm_y });
   } catch (e) {
-    res.status(500).json({ error: 'שגיאה בקבלת התוצאה' });
+    res.status(500).json({ error: "Conversion failed" });
   }
 });
 
-const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
