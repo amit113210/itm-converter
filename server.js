@@ -1,65 +1,29 @@
 const express = require('express');
-const https = require('https');
+const axios = require('axios');
+const bodyParser = require('body-parser');
+const cors = require('cors');
+
 const app = express();
-const path = require('path');
+const port = process.env.PORT || 3000;
 
+app.use(cors());
+app.use(bodyParser.json());
 app.use(express.static('public'));
-app.use(express.json({ limit: '1mb' }));
 
-/**
- * קריאה ל־RapidAPI להמרה מ-WGS84 ל-ITM.
- * @param {number} lat קו רוחב
- * @param {number} lon קו אורך
- * @returns {Promise<Object>} אובייקט JSON עם התוצאה מה-API
- */
-function callRapidApi(lat, lon) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'wgs84-to-itm.p.rapidapi.com',
-      path: `/convert-to-itm?lat=${lat}&long=${lon}`,
-      method: 'GET',
-      headers: {
-        'x-rapidapi-host': 'wgs84-to-itm.p.rapidapi.com',
-        'x-rapidapi-key': '59400d805cmshe8071a6bb086923p1fe4b4jsn9003b47efcf8'
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          resolve(parsed);
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    req.on('error', (err) => {
-      reject(err);
-    });
-
-    req.end();
-  });
-}
-
-app.post('/convert', async (req, res) => {
-  try {
-    const input = req.body.url || '';
-    // חילוץ lat/lon מהקישור (מזהה @32.768,.. או !3d.. !4d..)
-    const match =
-      input.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
-      input.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-    if (!match) {
-      return res.status(400).json({ error: 'לא נמצאו קואורדינטות תקינות' });
+async function callRapidApi(lat, lon) {
+  const options = {
+    method: 'GET',
+    url: 'https://wgs84-to-itm.p.rapidapi.com/convert-to-itm',
+    params: { lat: lat.toString(), long: lon.toString() },
+    headers: {
+      'x-rapidapi-host': 'wgs84-to-itm.p.rapidapi.com',
+      'x-rapidapi-key': '59400d805cmshe8071a6bb086923p1fe4b4jsn9003b47efcf8'
     }
+  };
 
-    const lat = parseFloat(match[1]);
-    const lon = parseFloat(match[2]);
-
-// ... (אותו קוד קודם עד לפונקציית ה-callRapidApi)
+  const response = await axios.request(options);
+  return response.data;
+}
 
 app.post('/convert', async (req, res) => {
   try {
@@ -76,13 +40,16 @@ app.post('/convert', async (req, res) => {
     const lon = parseFloat(match[2]);
 
     const result = await callRapidApi(lat, lon);
-    console.log('תשובה מה-API:', result); // הדפסת תוכן מלא
+    console.log('תשובה מה-API:', result);
 
-    // כאן תוכל לעדכן לפי השמות המדויקים בתשובה
-    const itmX = Number(result.itmX || result.x || result.easting);
-    const itmY = Number(result.itmY || result.y || result.northing);
+    // ניתוח ערכים מספריים גם אם הם מחרוזות
+    const numericValues = Object.values(result).filter(
+      (val) => !isNaN(val) && val !== null && val !== ''
+    );
+    const itmX = Number(numericValues[0]);
+    const itmY = Number(numericValues[1]);
 
-    return res.json({
+    res.json({
       lat,
       lon,
       itmX,
@@ -90,18 +57,11 @@ app.post('/convert', async (req, res) => {
       govmap: `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10`
     });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'שגיאה פנימית או תקלה בקריאה ל-API' });
+    console.error('שגיאה:', err);
+    res.status(500).json({ error: 'שגיאה בשרת' });
   }
 });
 
-
-// הגשת index.html בנתיב הראשי
-app.get('/', (_, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server listening on port ${port}`);
 });
