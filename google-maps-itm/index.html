@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ממיר קישור מגוגל מפות לרשת ישראל החדשה (ITM)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background-color: #f4f4f4;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 2rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #007bff;
+      color: #fff;
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .result {
+      margin-top: 1rem;
+      background: #fafafa;
+      padding: 1rem;
+      border: 1px solid #e1e1e1;
+      border-radius: 4px;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+  <!-- Load Proj4js from a CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
+</head>
+<body>
+  <h1>ממיר קישור מגוגל מפות לרשת ישראל החדשה (ITM)</h1>
+  <div class="container">
+    <label for="url-input">הדבק כאן קישור מגוגל מפות</label>
+    <input type="text" id="url-input" placeholder="לדוגמה: https://www.google.com/maps/place/.../@32.0853,34.7818,17z" />
+    <button id="convert-btn">המרה</button>
+    <div id="output" class="result" style="display:none;"></div>
+  </div>
+  <script>
+    // Define the Israeli Transverse Mercator (ITM) projection using EPSG:2039 parameters.
+    // See https://epsg.io/2039 for the definition. It is also known as the "New Israel Grid".
+    proj4.defs("EPSG:2039",
+      "+proj=tmerc +lat_0=31.7343936111111 +lon_0=35.2045169444444 +k=1.0000067 " +
+      "+x_0=219529.584 +y_0=626907.39 +ellps=GRS80 " +
+      "+towgs84=23.772,17.49,17.859,-0.3132,-1.85274,1.67299,-5.4262 +units=m +no_defs");
+
+    const convertBtn = document.getElementById('convert-btn');
+    const outputDiv = document.getElementById('output');
+
+    /**
+     * Extract latitude and longitude from a Google Maps URL.
+     * Supports URLs that include an @lat,lng segment or a q=lat,lng query parameter.
+     * @param {string} urlString The full Google Maps URL.
+     * @returns {{lat: number, lon: number}|null} The extracted coordinates, or null if none found.
+     */
+    function extractLatLon(urlString) {
+      try {
+        const url = new URL(urlString);
+        // Try to extract from the 'q' query parameter (e.g. ...?q=32.1,34.8)
+        const q = url.searchParams.get('q');
+        if (q) {
+          const match = q.match(/(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+          if (match) {
+            return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+          }
+        }
+        // Try to extract from the @lat,lon segment in the path
+        const atMatch = url.href.match(/@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+        if (atMatch) {
+          return { lat: parseFloat(atMatch[1]), lon: parseFloat(atMatch[2]) };
+        }
+        // Some shortened links include coordinates separated by comma in the path (e.g. /maps/32.1,34.8)
+        const pathMatch = url.pathname.match(/(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);
+        if (pathMatch) {
+          return { lat: parseFloat(pathMatch[1]), lon: parseFloat(pathMatch[2]) };
+        }
+      } catch (err) {
+        // If the URL constructor fails (invalid URL), try simple regex on the string
+        const regex = /(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/;
+        const match = urlString.match(regex);
+        if (match) {
+          return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Convert degrees to ITM coordinates using proj4.
+     * @param {number} lat Latitude in degrees (North positive).
+     * @param {number} lon Longitude in degrees (East positive).
+     * @returns {{easting: number, northing: number}} The ITM coordinates.
+     */
+    function latLonToITM(lat, lon) {
+      // proj4 expects coordinates in the form [lon, lat]
+      const [x, y] = proj4('EPSG:4326', 'EPSG:2039', [lon, lat]);
+      return { easting: x, northing: y };
+    }
+
+    convertBtn.addEventListener('click', () => {
+      const urlInput = document.getElementById('url-input').value.trim();
+      outputDiv.style.display = 'block';
+      outputDiv.innerHTML = '';
+      if (!urlInput) {
+        outputDiv.innerHTML = '<p class="error">אנא הדבק קישור מגוגל מפות.</p>';
+        return;
+      }
+      const coords = extractLatLon(urlInput);
+      if (!coords) {
+        outputDiv.innerHTML = '<p class="error">לא נמצאו קואורדינטות בקישור. נסו להעתיק קישור מהשורה העליונה של הדפדפן לאחר התמקדות במפה.</p>';
+        return;
+      }
+      const { lat, lon } = coords;
+      const itm = latLonToITM(lat, lon);
+      outputDiv.innerHTML =
+        `<p><strong>קו רוחב:</strong> ${lat.toFixed(6)}°</p>` +
+        `<p><strong>קו אורך:</strong> ${lon.toFixed(6)}°</p>` +
+        `<p><strong>רשת ישראל החדשה (ITM):</strong></p>` +
+        `<p>מזרח: ${itm.easting.toFixed(3)} מטר</p>` +
+        `<p>צפון: ${itm.northing.toFixed(3)} מטר</p>`;
+    });
+  </script>
+</body>
+</html>
