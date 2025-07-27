@@ -14,7 +14,7 @@ app.post('/convert', async (req, res) => {
   }
  try {
     // המרה דרך שירות צד שלישי - משתמש בשרת של צביקה בהט
-    const url = https://poshmap.co.il/itmconverter.ashx?lat=${lat}&lon=${lon};
+    const url = `https://poshmap.co.il/itmconverter.ashx?lat=${lat}&lon=${lon}`;
     const response = await axios.get(url);
    
         const match = response.data.match(/ITM X: (\d+), ITM Y: (\d+)/);
