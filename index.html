@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <title>המרת קישור גוגל לקואורדינטות</title>
+    <style>
+        body { direction: rtl; font-family: Arial; padding: 20px; }
+        input, button { padding: 6px; margin: 6px 0; width: 100%; }
+        #result { background: #f0f0f0; padding: 10px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <h2>המרת קישור גוגל לקואורדינטות ול-ITM</h2>
+
+    <label for="gmap">הדבק קישור מגוגל מפות:</label>
+    <input id="gmap" placeholder="https://www.google.com/maps/place/...">
+    <button onclick="convert()">המר</button>
+
+    <div id="result"></div>
+
+    <script>
+        function extractCoordinatesFromUrl(url) {
+            try {
+                const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+                const match = url.match(regex);
+                if (match && match.length === 3) {
+                    return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+                }
+                // fallback to d=... & 4d=...
+                const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                if (dMatch && dMatch.length === 3) {
+                    return { lat: parseFloat(dMatch[1]), lon: parseFloat(dMatch[2]) };
+                }
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        function convertLatLonToITM(lat, lon) {
+            // WGS84 to ITM conversion (simplified, close to govmap)
+            const a = 6378137.0;
+            const f = 1 / 298.257222101;
+            const k0 = 1.0000067;
+            const lon0 = 35.20451694444445;
+            const falseNorthing = 626907.39;
+            const falseEasting = 219529.58;
+
+            const degToRad = deg => deg * (Math.PI / 180);
+
+            const b = a * (1 - f);
+            const e = Math.sqrt(1 - (b * b) / (a * a));
+
+            const phi = degToRad(lat);
+            const lambda = degToRad(lon);
+            const lambda0 = degToRad(lon0);
+
+            const n = (a - b) / (a + b);
+            const A = a / (1 + n) * (1 + Math.pow(n, 2) / 4 + Math.pow(n, 4) / 64);
+
+            const t = Math.sinh(Math.atanh(Math.sin(phi)) - (2 * Math.sqrt(n)) / (1 + n) * Math.atanh((2 * Math.sqrt(n)) / (1 + n) * Math.sin(phi)));
+            const xi = Math.atan(t / Math.cos(lambda - lambda0));
+            const eta = Math.atanh(Math.sin(lambda - lambda0) / Math.sqrt(1 + t * t));
+
+            const x = A * xi * k0 + falseNorthing;
+            const y = A * eta * k0 + falseEasting;
+
+            return { x: Math.round(y * 100) / 100, y: Math.round(x * 100) / 100 }; // Notice: ITM X=Easting=Y, ITM Y=Northing=X
+        }
+
+        function convert() {
+            const url = document.getElementById('gmap').value;
+            const resultDiv = document.getElementById('result');
+            const coords = extractCoordinatesFromUrl(url);
+
+            if (!coords) {
+                resultDiv.innerHTML = `<strong>לא ניתן לחלץ קואורדינטות מהקישור</strong>`;
+                return;
+            }
+
+            const { lat, lon } = coords;
+            const itm = convertLatLonToITM(lat, lon);
+
+            resultDiv.innerHTML = `
+                <strong>Latitude (קו רוחב):</strong> ${lat}<br>
+                <strong>Longitude (קו אורך):</strong> ${lon}<br><br>
+                <strong>ITM X (מזרח):</strong> ${itm.x}<br>
+                <strong>ITM Y (צפון):</strong> ${itm.y}<br><br>
+                <em>להשוואה:</em> ניתן להדביק קואורדינטות אלו באתר <a href="https://zvikabh.github.io/software/ITM/index_heb.html" target="_blank">צביקה בהט</a> לאימות.
+            `;
+        }
+    </script>
+</body>
+</html>
