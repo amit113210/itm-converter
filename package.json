@@ -1,0 +1,12 @@
+{
+  "name": "itm-converter",
+  "version": "1.0.0",
+  "description": "ITM coordinate converter based on Zvika Bahat",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
