@@ -1,95 +1,52 @@
 <!DOCTYPE html>
 <html lang="he">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      direction: rtl;
-      text-align: center;
-      margin-top: 50px;
-    }
-    input {
-      width: 60%;
-      padding: 10px;
-      font-size: 1em;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 1em;
-    }
-    .results {
-      margin-top: 20px;
-    }
+    body { font-family: Arial; text-align: center; padding: 40px; direction: rtl; }
+    input { width: 80%; padding: 10px; }
+    button { padding: 10px 20px; margin-top: 10px; }
+    .output { margin-top: 30px; font-size: 18px; }
+    a { color: blue; }
   </style>
 </head>
 <body>
   <h2>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</h2>
-  <input type="text" id="googleUrl" placeholder="הדבק כאן קישור מגוגל מפות">
+  <input type="text" id="link" placeholder="הדבק כאן קישור מגוגל מפות">
+  <br>
   <button onclick="convert()">המר</button>
-
-  <div class="results" id="results"></div>
+  <div class="output" id="result"></div>
 
   <script>
-    function extractLatLngFromUrl(url) {
-      try {
-        let lat, lng;
-
-        const match1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (match1) {
-          lat = parseFloat(match1[1]);
-          lng = parseFloat(match1[2]);
-          return { lat, lng };
-        }
-
-        const match2 = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (match2) {
-          lat = parseFloat(match2[1]);
-          lng = parseFloat(match2[2]);
-          return { lat, lng };
-        }
-
-        return null;
-      } catch {
-        return null;
-      }
-    }
-
     async function convert() {
-      const url = document.getElementById("googleUrl").value.trim();
-      const coords = extractLatLngFromUrl(url);
-
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "";
-
-      if (!coords) {
-        resultsDiv.innerHTML = "<p style='color:red;'>לא נמצאו קואורדינטות בקישור.</p>";
-        return;
-      }
-
-      resultsDiv.innerHTML = "<p>מבצע המרה...</p>";
+      const link = document.getElementById('link').value;
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '...ממיר';
 
       try {
-        const response = await fetch("/convert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(coords),
+        const res = await fetch('/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: link })
         });
 
-        const data = await response.json();
+        const data = await res.json();
+        if (data.error) {
+          resultDiv.innerHTML = `<span style="color:red">שגיאה: ${data.error}</span>`;
+          return;
+        }
 
-        if (!data.itm_x || !data.itm_y) throw new Error("שגיאה בקבלת התוצאה");
-
-        resultsDiv.innerHTML = `
-          <p>קו רוחב: ${coords.lat}</p>
-          <p>קו אורך: ${coords.lng}</p>
-          <p><strong>ITM X:</strong> ${data.itm_x}</p>
-          <p><strong>ITM Y:</strong> ${data.itm_y}</p>
-          <p><a href="https://www.govmap.gov.il/?x=${data.itm_x}&y=${data.itm_y}&z=10" target="_blank">פתיחה ב-GovMap</a></p>
+        resultDiv.innerHTML = `
+          <div>קו רוחב: ${data.lat}</div>
+          <div>קו אורך: ${data.lon}</div>
+          <div><b>ITM X:</b> ${data.itmX}</div>
+          <div><b>ITM Y:</b> ${data.itmY}</div>
+          <br>
+          <a href="${data.govmap}" target="_blank">פתיחה ב־GovMap</a>
         `;
       } catch (e) {
-        resultsDiv.innerHTML = "<p style='color:red;'>אירעה שגיאה: " + e.message + "</p>";
+        resultDiv.innerHTML = `<span style="color:red">שגיאה בשירות: ${e.message}</span>`;
       }
     }
   </script>
