@@ -59,15 +59,28 @@ app.post('/convert', async (req, res) => {
     const lat = parseFloat(match[1]);
     const lon = parseFloat(match[2]);
 
-    // קריאה ל-API לקבלת ITM
-    const result = await callRapidApi(lat, lon);
+// ... (אותו קוד קודם עד לפונקציית ה-callRapidApi)
 
-    // חילוץ ערכים מספריים (או מחרוזות מספריות) מהתגובה
-    const numericValues = Object.values(result).filter(
-      (val) => val !== null && val !== '' && !isNaN(val)
-    );
-    const itmX = Number(numericValues[0]);
-    const itmY = Number(numericValues[1]);
+app.post('/convert', async (req, res) => {
+  try {
+    const input = req.body.url || '';
+    const match =
+      input.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
+      input.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+
+    if (!match) {
+      return res.status(400).json({ error: 'לא נמצאו קואורדינטות תקינות' });
+    }
+
+    const lat = parseFloat(match[1]);
+    const lon = parseFloat(match[2]);
+
+    const result = await callRapidApi(lat, lon);
+    console.log('תשובה מה-API:', result); // הדפסת תוכן מלא
+
+    // כאן תוכל לעדכן לפי השמות המדויקים בתשובה
+    const itmX = Number(result.itmX || result.x || result.easting);
+    const itmY = Number(result.itmY || result.y || result.northing);
 
     return res.json({
       lat,
@@ -78,11 +91,10 @@ app.post('/convert', async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    return res
-      .status(500)
-      .json({ error: 'שגיאה פנימית או תקלה בקריאה ל-API' });
+    return res.status(500).json({ error: 'שגיאה פנימית או תקלה בקריאה ל-API' });
   }
 });
+
 
 // הגשת index.html בנתיב הראשי
 app.get('/', (_, res) => {
