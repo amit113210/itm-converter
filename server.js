@@ -1,59 +1,74 @@
 const express = require('express');
+const https = require('https');
 const app = express();
 const path = require('path');
-const proj4 = require('./proj4');
 
 app.use(express.static('public'));
 app.use(express.json({ limit: '1mb' }));
 
-proj4.defs(
-  'EPSG:2039',
-  "+proj=tmerc +lat_0=31.7343936111111 +lon_0=35.2045169444444 " +
-    "+k=1.0000067 +x_0=219529.584 +y_0=626907.39 +ellps=GRS80 " +
-    "+towgs84=0,0,0 +units=m +no_defs"
+// פונקציה שמבצעת קריאה ל־RapidAPI ומחזירה Promise עם התוצאה
+function callRapidApi(lat, lon) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'wgs84-to-itm.p.rapidapi.com',
+      path: `/convert-to-itm?lat=${lat}&long=${lon}`,
+      method: 'GET',
+      headers: {
+        'x-rapidapi-host': 'wgs84-to-itm.p.rapidapi.com',
+        'x-rapidapi-key': '59400d805cmshe8071a6bb086923p1fe4b4jsn9003b47efcf8'
+      }
+    };
 
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve(parsed);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
 
-);
-
-// פונקציה שממירה קו רוחב/אורך ל־ITM בעזרת Proj4js
-function latlon_to_itm(lat, lon) {
-  const [x, y] = proj4('WGS84', 'EPSG:2039', [lon, lat]);
-  return { x: Math.round(x), y: Math.round(y) };
+    req.on('error', reject);
+    req.end();
+  });
 }
 
-// נקודת גישה להמרה – מקבלת JSON עם שדה url ומחזירה lat/lon/ITM
-app.post('/convert', (req, res) => {
+app.post('/convert', async (req, res) => {
   try {
     const input = req.body.url || '';
-    // חיפוש קווי רוחב/אורך בקישור של Google Maps
+    // חילוץ lat/lon מהקישור (כפי שהיה קודם)
     const match =
       input.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
       input.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-
     if (!match) {
-      return res.status(400).json({
-        error: 'לא נמצאו קואורדינטות תקינות'
-      });
+      return res.status(400).json({ error: 'לא נמצאו קואורדינטות תקינות' });
     }
-
     const lat = parseFloat(match[1]);
     const lon = parseFloat(match[2]);
-    const itm = latlon_to_itm(lat, lon);
+
+    // קריאה ל־API החיצוני לקבלת ITM
+    const result = await callRapidApi(lat, lon);
+    // לפי תיעוד ה־API, השדות הם easting ו‑northing
+    const itmX = result.easting;
+    const itmY = result.northing;
 
     return res.json({
       lat,
       lon,
-      itmX: itm.x,
-      itmY: itm.y,
-      govmap: `https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=10`
+      itmX,
+      itmY,
+      govmap: `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10`
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'שגיאה פנימית' });
+    return res.status(500).json({ error: 'שגיאה פנימית או קריאה ל־API נכשלה' });
   }
 });
 
-// שורש האפליקציה מחזיר את דף ה־HTML הציבורי
 app.get('/', (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
