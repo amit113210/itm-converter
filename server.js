@@ -1,14 +1,16 @@
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { convertLatLonToITM } = require('./convert');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 
 app.get('/', (req, res) => {
-  res.send('שרת פועל');
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 app.post('/convert', async (req, res) => {
@@ -18,10 +20,12 @@ app.post('/convert', async (req, res) => {
   }
 
   try {
-    const { x, y } = convertLatLonToITM(lat, lon);
-    res.json({ itmX: x, itmY: y });
-  } catch (e) {
-    res.status(500).json({ error: 'שגיאה בהמרה' });
+    const response = await axios.get(`https://www.mapi.gov.il/GenericServices/TransformCoordinates?coordSystem=ll&X=${lon}&Y=${lat}&targetSystem=itm`);
+    const { X, Y } = response.data;
+    res.json({ itm_x: X, itm_y: Y });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'שגיאה בהמרת הקואורדינטות' });
   }
 });
 
@@ -29,3 +33,6 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+
+
