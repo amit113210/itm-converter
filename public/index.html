@@ -35,11 +35,20 @@
     function extractLatLngFromUrl(url) {
       try {
         let lat, lng;
+
         const match1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (match1) return { lat: parseFloat(match1[1]), lon: parseFloat(match1[2]) };
+        if (match1) {
+          lat = parseFloat(match1[1]);
+          lng = parseFloat(match1[2]);
+          return { lat, lng };
+        }
 
         const match2 = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (match2) return { lat: parseFloat(match2[1]), lon: parseFloat(match2[2]) };
+        if (match2) {
+          lat = parseFloat(match2[1]);
+          lng = parseFloat(match2[2]);
+          return { lat, lng };
+        }
 
         return null;
       } catch {
@@ -50,6 +59,7 @@
     async function convert() {
       const url = document.getElementById("googleUrl").value.trim();
       const coords = extractLatLngFromUrl(url);
+
       const resultsDiv = document.getElementById("results");
       resultsDiv.innerHTML = "";
 
@@ -68,11 +78,12 @@
         });
 
         const data = await response.json();
+
         if (!data.itm_x || !data.itm_y) throw new Error("שגיאה בקבלת התוצאה");
 
         resultsDiv.innerHTML = `
           <p>קו רוחב: ${coords.lat}</p>
-          <p>קו אורך: ${coords.lon}</p>
+          <p>קו אורך: ${coords.lng}</p>
           <p><strong>ITM X:</strong> ${data.itm_x}</p>
           <p><strong>ITM Y:</strong> ${data.itm_y}</p>
           <p><a href="https://www.govmap.gov.il/?x=${data.itm_x}&y=${data.itm_y}&z=10" target="_blank">פתיחה ב-GovMap</a></p>
@@ -84,4 +95,3 @@
   </script>
 </body>
 </html>
-
