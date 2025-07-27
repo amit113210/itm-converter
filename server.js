@@ -6,7 +6,12 @@ const path = require('path');
 app.use(express.static('public'));
 app.use(express.json({ limit: '1mb' }));
 
-// פונקציה שמבצעת קריאה ל־RapidAPI ומחזירה Promise עם התוצאה
+/**
+ * קורא ל־API של RapidAPI ומחזיר קואורדינטות ITM.
+ * @param {number} lat קו רוחב
+ * @param {number} lon קו אורך
+ * @returns {Promise<Object>} אובייקט התגובה מה־API
+ */
 function callRapidApi(lat, lon) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -18,20 +23,17 @@ function callRapidApi(lat, lon) {
         'x-rapidapi-key': '59400d805cmshe8071a6bb086923p1fe4b4jsn9003b47efcf8'
       }
     };
-
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
-          resolve(parsed);
+          resolve(JSON.parse(data));
         } catch (err) {
           reject(err);
         }
       });
     });
-
     req.on('error', reject);
     req.end();
   });
@@ -40,7 +42,7 @@ function callRapidApi(lat, lon) {
 app.post('/convert', async (req, res) => {
   try {
     const input = req.body.url || '';
-    // חילוץ lat/lon מהקישור (כפי שהיה קודם)
+    // חילוץ קווי רוחב ואורך מהקישור
     const match =
       input.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
       input.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
@@ -50,11 +52,13 @@ app.post('/convert', async (req, res) => {
     const lat = parseFloat(match[1]);
     const lon = parseFloat(match[2]);
 
-    // קריאה ל־API החיצוני לקבלת ITM
+    // קריאה ל־RapidAPI לקבלת ITM
     const result = await callRapidApi(lat, lon);
-    // לפי תיעוד ה־API, השדות הם easting ו‑northing
-    const itmX = result.easting;
-    const itmY = result.northing;
+
+    // שליפת שני המספרים הראשונים מהתגובה (X, Y)
+    const values = Object.values(result).filter((val) => typeof val === 'number');
+    const itmX = values[0];
+    const itmY = values[1];
 
     return res.json({
       lat,
@@ -69,6 +73,7 @@ app.post('/convert', async (req, res) => {
   }
 });
 
+// שורש האתר מגיש את index.html
 app.get('/', (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
