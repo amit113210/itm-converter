@@ -1,94 +1,129 @@
 <!DOCTYPE html>
 <html lang="he">
 <head>
-    <meta charset="UTF-8">
-    <title>המרת קישור גוגל לקואורדינטות</title>
-    <style>
-        body { direction: rtl; font-family: Arial; padding: 20px; }
-        input, button { padding: 6px; margin: 6px 0; width: 100%; }
-        #result { background: #f0f0f0; padding: 10px; margin-top: 15px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>המרת מיקום מגוגל ל-ITM + GovMap</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    #output {
+      background: #fff;
+      padding: 15px;
+      border: 1px solid #ccc;
+    }
+  </style>
 </head>
 <body>
-    <h2>המרת קישור גוגל לקואורדינטות ול-ITM</h2>
+  <h2>המרת קישור מגוגל מפות ל-ITM + GovMap</h2>
+  <label>הדבק קישור:</label>
+  <input type="text" id="googleLink" placeholder="https://www.google.com/maps/...">
+  <button onclick="convert()">המר</button>
+  <div id="output"></div>
 
-    <label for="gmap">הדבק קישור מגוגל מפות:</label>
-    <input id="gmap" placeholder="https://www.google.com/maps/place/...">
-    <button onclick="convert()">המר</button>
+  <script>
+    function extractLatLngFromURL(url) {
+      const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        return [parseFloat(atMatch[1]), parseFloat(atMatch[2])];
+      }
+      const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+      if (dMatch) {
+        return [parseFloat(dMatch[1]), parseFloat(dMatch[2])];
+      }
+      return null;
+    }
 
-    <div id="result"></div>
+    function wgs84ToItm(lat, lon) {
+      // Parameters from צביקה בהט
+      const deg2rad = Math.PI / 180;
+      const a = 6378137;
+      const e = 0.0818191910428;
+      const lon0 = 35.2045169444444;
+      const lat0 = 31.7343936111111;
+      const k0 = 1.0000067;
+      const falseE = 219529.584;
+      const falseN = 626907.39;
 
-    <script>
-        function extractCoordinatesFromUrl(url) {
-            try {
-                const regex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
-                const match = url.match(regex);
-                if (match && match.length === 3) {
-                    return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-                }
-                // fallback to d=... & 4d=...
-                const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-                if (dMatch && dMatch.length === 3) {
-                    return { lat: parseFloat(dMatch[1]), lon: parseFloat(dMatch[2]) };
-                }
-                return null;
-            } catch {
-                return null;
-            }
-        }
+      const φ = lat * deg2rad;
+      const λ = lon * deg2rad;
+      const λ0 = lon0 * deg2rad;
+      const φ0 = lat0 * deg2rad;
 
-        function convertLatLonToITM(lat, lon) {
-            // WGS84 to ITM conversion (simplified, close to govmap)
-            const a = 6378137.0;
-            const f = 1 / 298.257222101;
-            const k0 = 1.0000067;
-            const lon0 = 35.20451694444445;
-            const falseNorthing = 626907.39;
-            const falseEasting = 219529.58;
+      const Δλ = λ - λ0;
+      const sinφ = Math.sin(φ);
+      const cosφ = Math.cos(φ);
+      const tanφ = Math.tan(φ);
 
-            const degToRad = deg => deg * (Math.PI / 180);
+      const ν = a / Math.sqrt(1 - Math.pow(e * sinφ, 2));
+      const ρ = a * (1 - Math.pow(e, 2)) / Math.pow(1 - Math.pow(e * sinφ, 2), 1.5);
+      const η2 = ν / ρ - 1;
 
-            const b = a * (1 - f);
-            const e = Math.sqrt(1 - (b * b) / (a * a));
+      const A = Δλ * cosφ;
+      const T = tanφ * tanφ;
+      const C = η2;
+      const M = a * (
+        (1 - Math.pow(e,2)/4 - 3*Math.pow(e,4)/64 - 5*Math.pow(e,6)/256) * φ
+        - (3*Math.pow(e,2)/8 + 3*Math.pow(e,4)/32 + 45*Math.pow(e,6)/1024) * Math.sin(2*φ)
+        + (15*Math.pow(e,4)/256 + 45*Math.pow(e,6)/1024) * Math.sin(4*φ)
+        - (35*Math.pow(e,6)/3072) * Math.sin(6*φ)
+      );
 
-            const phi = degToRad(lat);
-            const lambda = degToRad(lon);
-            const lambda0 = degToRad(lon0);
+      const M0 = a * (
+        (1 - Math.pow(e,2)/4 - 3*Math.pow(e,4)/64 - 5*Math.pow(e,6)/256) * φ0
+        - (3*Math.pow(e,2)/8 + 3*Math.pow(e,4)/32 + 45*Math.pow(e,6)/1024) * Math.sin(2*φ0)
+        + (15*Math.pow(e,4)/256 + 45*Math.pow(e,6)/1024) * Math.sin(4*φ0)
+        - (35*Math.pow(e,6)/3072) * Math.sin(6*φ0)
+      );
 
-            const n = (a - b) / (a + b);
-            const A = a / (1 + n) * (1 + Math.pow(n, 2) / 4 + Math.pow(n, 4) / 64);
+      const x = falseE + k0 * ν * (
+        A + (1 - T + C) * Math.pow(A,3)/6 + (5 - 18*T + T*T + 72*C - 58*η2) * Math.pow(A,5)/120
+      );
 
-            const t = Math.sinh(Math.atanh(Math.sin(phi)) - (2 * Math.sqrt(n)) / (1 + n) * Math.atanh((2 * Math.sqrt(n)) / (1 + n) * Math.sin(phi)));
-            const xi = Math.atan(t / Math.cos(lambda - lambda0));
-            const eta = Math.atanh(Math.sin(lambda - lambda0) / Math.sqrt(1 + t * t));
+      const y = falseN + k0 * (
+        M - M0 + ν * tanφ * (
+          Math.pow(A,2)/2 + (5 - T + 9*C + 4*Math.pow(C,2)) * Math.pow(A,4)/24 +
+          (61 - 58*T + T*T + 600*C - 330*η2) * Math.pow(A,6)/720
+        )
+      );
 
-            const x = A * xi * k0 + falseNorthing;
-            const y = A * eta * k0 + falseEasting;
+      return [x, y];
+    }
 
-            return { x: Math.round(y * 100) / 100, y: Math.round(x * 100) / 100 }; // Notice: ITM X=Easting=Y, ITM Y=Northing=X
-        }
+    function convert() {
+      const input = document.getElementById("googleLink").value.trim();
+      const coords = extractLatLngFromURL(input);
+      const out = document.getElementById("output");
 
-        function convert() {
-            const url = document.getElementById('gmap').value;
-            const resultDiv = document.getElementById('result');
-            const coords = extractCoordinatesFromUrl(url);
+      if (!coords) {
+        out.innerHTML = `<span style="color:red;">❌ לא הצלחנו לחלץ קואורדינטות מהקישור</span>`;
+        return;
+      }
 
-            if (!coords) {
-                resultDiv.innerHTML = `<strong>לא ניתן לחלץ קואורדינטות מהקישור</strong>`;
-                return;
-            }
+      const [lat, lon] = coords;
+      const [itmX, itmY] = wgs84ToItm(lat, lon);
 
-            const { lat, lon } = coords;
-            const itm = convertLatLonToITM(lat, lon);
+      const govmapUrl = `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10`;
 
-            resultDiv.innerHTML = `
-                <strong>Latitude (קו רוחב):</strong> ${lat}<br>
-                <strong>Longitude (קו אורך):</strong> ${lon}<br><br>
-                <strong>ITM X (מזרח):</strong> ${itm.x}<br>
-                <strong>ITM Y (צפון):</strong> ${itm.y}<br><br>
-                <em>להשוואה:</em> ניתן להדביק קואורדינטות אלו באתר <a href="https://zvikabh.github.io/software/ITM/index_heb.html" target="_blank">צביקה בהט</a> לאימות.
-            `;
-        }
-    </script>
+      out.innerHTML = `
+        ✅ <b>קואורדינטות WGS84:</b><br>
+        Latitude: ${lat}<br>
+        Longitude: ${lon}<br><br>
+        ✅ <b>ITM:</b><br>
+        X: ${itmX.toFixed(2)}<br>
+        Y: ${itmY.toFixed(2)}<br><br>
+        🔗 <a href="${govmapUrl}" target="_blank">צפה במיקום ב-GovMap</a>
+      `;
+    }
+  </script>
 </body>
 </html>
