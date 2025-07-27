@@ -2,128 +2,86 @@
 <html lang="he">
 <head>
   <meta charset="UTF-8">
-  <title>המרת מיקום מגוגל ל-ITM + GovMap</title>
+  <title>המרת קישור גוגל לקואורדינטות ול־ITM</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
       direction: rtl;
-      padding: 20px;
-      background-color: #f9f9f9;
+      text-align: center;
+      padding: 30px;
     }
-    input, button {
+    input[type="text"] {
+      width: 90%;
       padding: 10px;
       font-size: 16px;
-      width: 100%;
-      margin-bottom: 15px;
     }
-    #output {
-      background: #fff;
-      padding: 15px;
-      border: 1px solid #ccc;
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .output {
+      margin-top: 30px;
+      font-size: 18px;
     }
   </style>
 </head>
 <body>
-  <h2>המרת קישור מגוגל מפות ל-ITM + GovMap</h2>
-  <label>הדבק קישור:</label>
-  <input type="text" id="googleLink" placeholder="https://www.google.com/maps/...">
-  <button onclick="convert()">המר</button>
-  <div id="output"></div>
 
-  <script>
-    function extractLatLngFromURL(url) {
-      const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (atMatch) {
-        return [parseFloat(atMatch[1]), parseFloat(atMatch[2])];
-      }
-      const dMatch = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-      if (dMatch) {
-        return [parseFloat(dMatch[1]), parseFloat(dMatch[2])];
-      }
+<h2>המרת קישור גוגל לקואורדינטות ול־ITM</h2>
+<p>הדבק קישור מגוגל מפות:</p>
+<input type="text" id="mapUrl" placeholder="הדבק כאן קישור מגוגל מפות">
+<br>
+<button onclick="convert()">המר</button>
+
+<div class="output" id="results"></div>
+
+<script>
+  const WGS84 = 'EPSG:4326';
+  const ITM = '+proj=tmerc +lat_0=31.73439361111111 +lon_0=35.20451694444445 +k=1.0000067 ' +
+              '+x_0=219529.584 +y_0=626907.39 +ellps=GRS80 +units=m +no_defs';
+
+  function extractCoordinatesFromUrl(url) {
+    try {
+      // ניסיון למצוא את הקואורדינטות מכל סוג URL
+      const latlonMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+      if (!latlonMatch) return null;
+      const lat = parseFloat(latlonMatch[1]);
+      const lon = parseFloat(latlonMatch[2]);
+      return { lat, lon };
+    } catch {
       return null;
     }
+  }
 
-    function wgs84ToItm(lat, lon) {
-      // Parameters from צביקה בהט
-      const deg2rad = Math.PI / 180;
-      const a = 6378137;
-      const e = 0.0818191910428;
-      const lon0 = 35.2045169444444;
-      const lat0 = 31.7343936111111;
-      const k0 = 1.0000067;
-      const falseE = 219529.584;
-      const falseN = 626907.39;
-
-      const φ = lat * deg2rad;
-      const λ = lon * deg2rad;
-      const λ0 = lon0 * deg2rad;
-      const φ0 = lat0 * deg2rad;
-
-      const Δλ = λ - λ0;
-      const sinφ = Math.sin(φ);
-      const cosφ = Math.cos(φ);
-      const tanφ = Math.tan(φ);
-
-      const ν = a / Math.sqrt(1 - Math.pow(e * sinφ, 2));
-      const ρ = a * (1 - Math.pow(e, 2)) / Math.pow(1 - Math.pow(e * sinφ, 2), 1.5);
-      const η2 = ν / ρ - 1;
-
-      const A = Δλ * cosφ;
-      const T = tanφ * tanφ;
-      const C = η2;
-      const M = a * (
-        (1 - Math.pow(e,2)/4 - 3*Math.pow(e,4)/64 - 5*Math.pow(e,6)/256) * φ
-        - (3*Math.pow(e,2)/8 + 3*Math.pow(e,4)/32 + 45*Math.pow(e,6)/1024) * Math.sin(2*φ)
-        + (15*Math.pow(e,4)/256 + 45*Math.pow(e,6)/1024) * Math.sin(4*φ)
-        - (35*Math.pow(e,6)/3072) * Math.sin(6*φ)
-      );
-
-      const M0 = a * (
-        (1 - Math.pow(e,2)/4 - 3*Math.pow(e,4)/64 - 5*Math.pow(e,6)/256) * φ0
-        - (3*Math.pow(e,2)/8 + 3*Math.pow(e,4)/32 + 45*Math.pow(e,6)/1024) * Math.sin(2*φ0)
-        + (15*Math.pow(e,4)/256 + 45*Math.pow(e,6)/1024) * Math.sin(4*φ0)
-        - (35*Math.pow(e,6)/3072) * Math.sin(6*φ0)
-      );
-
-      const x = falseE + k0 * ν * (
-        A + (1 - T + C) * Math.pow(A,3)/6 + (5 - 18*T + T*T + 72*C - 58*η2) * Math.pow(A,5)/120
-      );
-
-      const y = falseN + k0 * (
-        M - M0 + ν * tanφ * (
-          Math.pow(A,2)/2 + (5 - T + 9*C + 4*Math.pow(C,2)) * Math.pow(A,4)/24 +
-          (61 - 58*T + T*T + 600*C - 330*η2) * Math.pow(A,6)/720
-        )
-      );
-
-      return [x, y];
+  function convert() {
+    const url = document.getElementById('mapUrl').value.trim();
+    const coords = extractCoordinatesFromUrl(url);
+    const output = document.getElementById('results');
+    if (!coords) {
+      output.innerHTML = '<span style="color:red;">לא נמצאו קואורדינטות בקישור.</span>';
+      return;
     }
 
-    function convert() {
-      const input = document.getElementById("googleLink").value.trim();
-      const coords = extractLatLngFromURL(input);
-      const out = document.getElementById("output");
+    const itm = proj4(WGS84, ITM, [coords.lon, coords.lat]);
 
-      if (!coords) {
-        out.innerHTML = `<span style="color:red;">❌ לא הצלחנו לחלץ קואורדינטות מהקישור</span>`;
-        return;
-      }
+    const lat = coords.lat.toFixed(7);
+    const lon = coords.lon.toFixed(7);
+    const itmX = itm[0].toFixed(2);
+    const itmY = itm[1].toFixed(2);
 
-      const [lat, lon] = coords;
-      const [itmX, itmY] = wgs84ToItm(lat, lon);
+    const govmapUrl = `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10`;
 
-      const govmapUrl = `https://www.govmap.gov.il/?c=${itmX},${itmY}&z=10`;
+    output.innerHTML = `
+      <strong>Latitude (קו רוחב):</strong> ${lat}<br>
+      <strong>Longitude (קו אורך):</strong> ${lon}<br><br>
+      <strong>ITM X (מזרח):</strong> ${itmX}<br>
+      <strong>ITM Y (צפון):</strong> ${itmY}<br><br>
+      <a href="${govmapUrl}" target="_blank">צפייה ב־govmap</a>
+    `;
+  }
+</script>
 
-      out.innerHTML = `
-        ✅ <b>קואורדינטות WGS84:</b><br>
-        Latitude: ${lat}<br>
-        Longitude: ${lon}<br><br>
-        ✅ <b>ITM:</b><br>
-        X: ${itmX.toFixed(2)}<br>
-        Y: ${itmY.toFixed(2)}<br><br>
-        🔗 <a href="${govmapUrl}" target="_blank">צפה במיקום ב-GovMap</a>
-      `;
-    }
-  </script>
 </body>
 </html>
