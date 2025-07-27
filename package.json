@@ -1,12 +1,9 @@
 {
   "name": "itm-converter",
   "version": "1.0.0",
-  "description": "Convert Google Maps lat/lon to ITM using Zvika Bahat logic",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "dependencies": {
-    "express": "^4.18.2"
-  }
+  "dependencies": {}
 }
