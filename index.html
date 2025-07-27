@@ -1,90 +1,94 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he">
 <head>
   <meta charset="UTF-8">
-  <title>המרת קישור גוגל ל-ITM מדויק</title>
+  <title>המרת קישור גוגל ל-ITM</title>
   <style>
-    body { font-family: Arial; background: #f5f5f5; padding: 20px; direction: rtl; }
-    input, button { padding: 10px; font-size: 16px; width: 100%; margin-top: 10px; }
-    #output { margin-top: 20px; background: #fff; padding: 15px; border: 1px solid #ccc; }
-    a { color: #007bff; }
+    body { font-family: Arial; direction: rtl; text-align: center; margin-top: 50px; }
+    input { width: 60%; padding: 10px; font-size: 16px; }
+    button { padding: 10px 20px; font-size: 16px; }
+    #result { margin-top: 20px; font-size: 18px; }
+    a { color: blue; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h2>המרת קישור מ-Google Maps לקואורדינטות ITM</h2>
-  <input type="text" id="mapUrl" placeholder="הדבק כאן קישור מגוגל מפות">
+
+  <h2>המרת קישור גוגל לקואורדינטות מדויקות (ITM)</h2>
+  <input type="text" id="googleUrl" placeholder="הדבק קישור גוגל מפות כאן">
+  <br><br>
   <button onclick="convert()">המר</button>
-  <div id="output"></div>
 
-<script>
-function extractLatLng(url) {
-  const at = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
+  <div id="result"></div>
 
-  const d = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-  if (d) return { lat: parseFloat(d[1]), lng: parseFloat(d[2]) };
+  <script>
+    // הגדרת פרמטרים של מערכת ITM בדיוק כמו של צביקה בהט
+    function LatLng2ITM(lat, lon) {
+      const deg2rad = Math.PI / 180;
+      const rad2deg = 180 / Math.PI;
 
-  return null;
-}
+      const a = 6378137;
+      const f = 1 / 298.257222101;
+      const b = a * (1 - f);
+      const e = Math.sqrt(1 - (b * b) / (a * a));
+      const lon0 = 35.20451694444 * deg2rad;
+      const k0 = 1.0000067;
+      const FE = 219529.584;
+      const FN = 626907.39;
 
-function latlng2itm(lat, lon) {
-  const deg2rad = Math.PI / 180;
-  const a = 6378137, b = 6356752.3141;
-  const f = (a - b) / a;
-  const e2 = 2*f - f*f;
-  const lon0 = 35.20451694444445;
-  const lat0 = 31.73439361111111;
-  const k0 = 1.0000067;
-  const falseE = 219529.584;
-  const falseN = 626907.39;
+      lat *= deg2rad;
+      lon *= deg2rad;
 
-  const φ = lat * deg2rad;
-  const λ = lon * deg2rad;
-  const φ0 = lat0 * deg2rad;
-  const λ0 = lon0 * deg2rad;
+      const n = (a - b) / (a + b);
+      const A = a / (1 + n) * (1 + n * n / 4 + n ** 4 / 64);
 
-  const N = a / Math.sqrt(1 - e2 * Math.sin(φ) ** 2);
-  const T = Math.tan(φ) ** 2;
-  const C = e2 / (1 - e2) * Math.cos(φ) ** 2;
-  const A = (λ - λ0) * Math.cos(φ);
+      const t = Math.sinh(Math.atanh(Math.sin(lat)) - (2 * Math.sqrt(n)) / (1 + n) *
+        Math.atanh((2 * Math.sqrt(n)) / (1 + n) * Math.sin(lat)));
 
-  const M1 = (1 - e2 / 4 - 3 * e2 ** 2 / 64 - 5 * e2 ** 3 / 256) * φ;
-  const M2 = (3 * e2 / 8 + 3 * e2 ** 2 / 32 + 45 * e2 ** 3 / 1024) * Math.sin(2 * φ);
-  const M3 = (15 * e2 ** 2 / 256 + 45 * e2 ** 3 / 1024) * Math.sin(4 * φ);
-  const M4 = (35 * e2 ** 3 / 3072) * Math.sin(6 * φ);
-  const M = a * (M1 - M2 + M3 - M4);
+      const xi = Math.atan(t / Math.cos(lon - lon0));
+      const eta = Math.atanh(Math.sin(lon - lon0) / Math.sqrt(1 + t * t));
 
-  const x = falseE + k0 * N * (A + (1 - T + C) * A**3 / 6 +
-    (5 - 18 * T + T**2 + 72 * C - 58 * e2 / (1 - e2)) * A**5 / 120);
-  const y = falseN + k0 * (M + N * Math.tan(φ) * (A**2 / 2 +
-    (5 - T + 9 * C + 4 * C**2) * A**4 / 24 +
-    (61 - 58 * T + T**2 + 600 * C - 330 * e2 / (1 - e2)) * A**6 / 720));
+      let x = k0 * A * xi + FN;
+      let y = k0 * A * eta + FE;
 
-  return { x: Math.round(x), y: Math.round(y) };
-}
+      return { x: Math.round(y * 100) / 100, y: Math.round(x * 100) / 100 };
+    }
 
-function convert() {
-  const url = document.getElementById("mapUrl").value.trim();
-  const coords = extractLatLng(url);
-  const output = document.getElementById("output");
+    function extractLatLngFromUrl(url) {
+      try {
+        // תמיכה בפורמט @LAT,LNG
+        let match = url.match(/@([0-9\.\-]+),([0-9\.\-]+)/);
+        if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
 
-  if (!coords) {
-    output.innerHTML = "<span style='color:red;'>לא נמצאו קואורדינטות חוקיות בקישור.</span>";
-    return;
-  }
+        // תמיכה בפורמט !3dLAT!4dLNG
+        match = url.match(/!3d([0-9\.\-]+)!4d([0-9\.\-]+)/);
+        if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
 
-  const itm = latlng2itm(coords.lat, coords.lng);
-  const govmapUrl = `https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=10`;
+        return null;
+      } catch (e) {
+        return null;
+      }
+    }
 
-  output.innerHTML = `
-    <p><strong>קו רוחב:</strong> ${coords.lat}</p>
-    <p><strong>קו אורך:</strong> ${coords.lng}</p>
-    <p><strong>ITM X:</strong> ${itm.x}</p>
-    <p><strong>ITM Y:</strong> ${itm.y}</p>
-    <p><a href="${govmapUrl}" target="_blank">פתיחה ב-GovMap</a></p>
-  `;
-}
-</script>
+    function convert() {
+      const url = document.getElementById("googleUrl").value;
+      const coords = extractLatLngFromUrl(url);
+      const result = document.getElementById("result");
 
+      if (!coords) {
+        result.innerHTML = "לא נמצאו קואורדינטות בקישור.";
+        return;
+      }
+
+      const itm = LatLng2ITM(coords.lat, coords.lng);
+
+      result.innerHTML = `
+        <p><strong>קו רוחב:</strong> ${coords.lat}</p>
+        <p><strong>קו אורך:</strong> ${coords.lng}</p>
+        <p><strong>ITM X:</strong> ${itm.x}</p>
+        <p><strong>ITM Y:</strong> ${itm.y}</p>
+        <p><a href="https://www.govmap.gov.il/?c=${itm.x},${itm.y}&z=10" target="_blank">פתיחה ב-GovMap</a></p>
+      `;
+    }
+  </script>
 </body>
 </html>
