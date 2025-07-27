@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="he">
 <head>
@@ -62,14 +61,13 @@
       resultsDiv.innerHTML = "<p>מבצע המרה...</p>";
 
       try {
-        const response = await fetch("https://itm-converter.onrender.com/convert", {
+        const response = await fetch("/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(coords),
         });
 
         const data = await response.json();
-
         if (!data.itm_x || !data.itm_y) throw new Error("שגיאה בקבלת התוצאה");
 
         resultsDiv.innerHTML = `
@@ -86,3 +84,4 @@
   </script>
 </body>
 </html>
+
