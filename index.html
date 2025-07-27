@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      padding: 30px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    #results {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</h1>
+
+  <input type="text" id="googleLink" placeholder="הדבק כאן קישור מגוגל מפות">
+  <button onclick="convert()">המר</button>
+
+  <div id="results"></div>
+
+  <script>
+    function extractLatLon(url) {
+      let match = url.match(/@([-0-9.]+),([-0-9.]+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+      }
+
+      match = url.match(/!3d([-0-9.]+)!4d([-0-9.]+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+      }
+
+      return null;
+    }
+
+    async function convert() {
+      const link = document.getElementById('googleLink').value;
+      const coords = extractLatLon(link);
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '';
+
+      if (!coords) {
+        resultsDiv.innerHTML = 'לא נמצאו קואורדינטות חוקיות בקישור.';
+        return;
+      }
+
+      const { lat, lon } = coords;
+
+      resultsDiv.innerHTML = `
+        <p>קו רוחב: ${lat}</p>
+        <p>קו אורך: ${lon}</p>
+        <p>ממיר נתונים...</p>
+      `;
+
+      try {
+        const res = await fetch(`https://itm-converter.onrender.com/convert?lat=${lat}&lon=${lon}`);
+        const data = await res.json();
+
+        const { x, y } = data;
+        const govMapLink = `https://www.govmap.gov.il/?c=${x},${y}&z=10`;
+
+        resultsDiv.innerHTML = `
+          <p>קו רוחב: ${lat}</p>
+          <p>קו אורך: ${lon}</p>
+          <p><strong>ITM X:</strong> ${x}</p>
+          <p><strong>ITM Y:</strong> ${y}</p>
+          <p><a href="${govMapLink}" target="_blank">פתיחה ב-GovMap</a></p>
+        `;
+      } catch (err) {
+        resultsDiv.innerHTML += '<p style="color:red;">שגיאה בתקשורת עם השרת</p>';
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>
