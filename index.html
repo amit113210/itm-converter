@@ -1,66 +1,86 @@
 <!DOCTYPE html>
-<html lang="he">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <title>המרת קישור גוגל לקואורדינטות ול-ITM</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.0/proj4.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
   <style>
-    body { direction: rtl; font-family: sans-serif; margin: 2em; background: #f4f4f4; }
-    input, button { font-size: 1em; padding: 0.5em; width: 100%; margin: 0.5em 0; }
-    #output { margin-top: 1.5em; background: white; padding: 1em; border-radius: 5px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f6f6f6;
+      direction: rtl;
+      text-align: right;
+    }
+    input, button {
+      font-size: 16px;
+      padding: 5px;
+      width: 100%;
+      margin: 10px 0;
+    }
+    #output {
+      background: #fff;
+      padding: 15px;
+      border: 1px solid #ccc;
+    }
+    .label {
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-
   <h2>המרת קישור גוגל לקואורדינטות ול-ITM</h2>
-  <label for="url">הדבק קישור מגוגל מפות:</label>
-  <input type="text" id="url" placeholder="https://www.google.com/maps...">
-  <button onclick="convert()">המרה</button>
-
+  <label class="label">הדבק קישור מגוגל מפות:</label>
+  <input type="text" id="mapUrl" placeholder="https://www.google.com/maps/...">
+  <button onclick="convert()">💠 המר</button>
   <div id="output"></div>
 
   <script>
-    // הגדרה תואמת לאתר של צביקה בהט - המדויקת ביותר
-    proj4.defs("EPSG:4326", "+proj=longlat +datum=WGS84 +no_defs");
-    proj4.defs("ITM", "+proj=tmerc +lat_0=31.73439361111111 +lon_0=35.20451694444445 +k=1.0000067 +x_0=219529.584 +y_0=626907.39 +ellps=GRS80 +units=m +no_defs");
+    // הגדרת מערכת ישראל החדשה (EPSG:2039)
+    proj4.defs("EPSG:2039","+proj=tmerc +lat_0=31.73439361111111 +lon_0=35.20451694444445 +k=1.0000067 +x_0=219529.584 +y_0=626907.39 +ellps=GRS80 +units=m +no_defs");
 
-    function extractLatLng(url) {
+    function extractCoordinates(url) {
       try {
-        let m = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+        let lat, lng;
 
-        m = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-        if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+        // תבנית @LAT,LNG
+        const atPattern = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+        const atMatch = url.match(atPattern);
+        if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+
+        // תבנית !3dLAT!4dLNG
+        const d3Pattern = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/;
+        const d3Match = url.match(d3Pattern);
+        if (d3Match) return { lat: parseFloat(d3Match[1]), lng: parseFloat(d3Match[2]) };
 
         return null;
-      } catch { return null; }
+      } catch {
+        return null;
+      }
     }
 
     function convert() {
-      const url = document.getElementById("url").value;
+      const url = document.getElementById("mapUrl").value.trim();
+      const coords = extractCoordinates(url);
       const output = document.getElementById("output");
-      const coords = extractLatLng(url);
 
       if (!coords) {
-        output.innerHTML = "לא נמצאו קואורדינטות תקינות בקישור.";
+        output.innerHTML = "<span style='color:red'>לא הצלחנו לחלץ קואורדינטות מהקישור.</span>";
         return;
       }
 
-      const { lat, lng } = coords;
-      const [itmX, itmY] = proj4("EPSG:4326", "ITM", [lng, lat]);
+      const [x, y] = proj4("EPSG:4326", "EPSG:2039", [coords.lng, coords.lat]);
 
-      const govmapLink = `https://www.govmap.gov.il/?c=${itmX.toFixed(2)},${itmY.toFixed(2)}&z=10`;
+      const govmapLink = `https://www.govmap.gov.il/?c=${x},${y}&z=10`;
 
       output.innerHTML = `
-        <p><strong>קו רוחב (Latitude):</strong> ${lat}</p>
-        <p><strong>קו אורך (Longitude):</strong> ${lng}</p>
-        <p><strong>ITM X (מזרח):</strong> ${itmX.toFixed(2)}</p>
-        <p><strong>ITM Y (צפון):</strong> ${itmY.toFixed(2)}</p>
-        <p>קישור ל־<a href="${govmapLink}" target="_blank">govmap</a></p>
-        <p>השווה עם <a href="https://zvikabh.github.io/software/ITM/index_heb.html" target="_blank">צביקה בהט</a></p>
+        <p><strong>Latitude (קו רוחב):</strong> ${coords.lat}</p>
+        <p><strong>Longitude (קו אורך):</strong> ${coords.lng}</p>
+        <p><strong>ITM X (מזרח):</strong> ${x.toFixed(2)}</p>
+        <p><strong>ITM Y (צפון):</strong> ${y.toFixed(2)}</p>
+        <p>לבדיקה: <a href="${govmapLink}" target="_blank">צפייה ב-GovMap</a></p>
       `;
     }
   </script>
-
 </body>
 </html>
