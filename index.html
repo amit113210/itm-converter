@@ -1,87 +1,97 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       direction: rtl;
-      padding: 30px;
+      text-align: center;
+      margin-top: 50px;
     }
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      margin: 8px 0;
+    input {
+      width: 60%;
+      padding: 10px;
+      font-size: 1em;
     }
     button {
       padding: 10px 20px;
-      font-size: 16px;
+      font-size: 1em;
     }
-    #results {
+    .results {
       margin-top: 20px;
     }
   </style>
 </head>
 <body>
-  <h1>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</h1>
-
-  <input type="text" id="googleLink" placeholder="הדבק כאן קישור מגוגל מפות">
+  <h2>המרת קישור מגוגל לקואורדינטות מדויקות (ITM)</h2>
+  <input type="text" id="googleUrl" placeholder="הדבק כאן קישור מגוגל מפות">
   <button onclick="convert()">המר</button>
 
-  <div id="results"></div>
+  <div class="results" id="results"></div>
 
   <script>
-    function extractLatLon(url) {
-      let match = url.match(/@([-0-9.]+),([-0-9.]+)/);
-      if (match) {
-        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-      }
+    function extractLatLngFromUrl(url) {
+      try {
+        let lat, lng;
 
-      match = url.match(/!3d([-0-9.]+)!4d([-0-9.]+)/);
-      if (match) {
-        return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
-      }
+        // Format 1: https://www.google.com/maps/place/.../@32.07,34.79,...
+        const match1 = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (match1) {
+          lat = parseFloat(match1[1]);
+          lng = parseFloat(match1[2]);
+          return { lat, lng };
+        }
 
-      return null;
+        // Format 2: https://www.google.com/maps/place/.../data=!3d32.07!4d34.79
+        const match2 = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+        if (match2) {
+          lat = parseFloat(match2[1]);
+          lng = parseFloat(match2[2]);
+          return { lat, lng };
+        }
+
+        return null;
+      } catch {
+        return null;
+      }
     }
 
     async function convert() {
-      const link = document.getElementById('googleLink').value;
-      const coords = extractLatLon(link);
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = '';
+      const url = document.getElementById("googleUrl").value.trim();
+      const coords = extractLatLngFromUrl(url);
+
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "";
 
       if (!coords) {
-        resultsDiv.innerHTML = 'לא נמצאו קואורדינטות חוקיות בקישור.';
+        resultsDiv.innerHTML = "<p style='color:red;'>לא נמצאו קואורדינטות בקישור.</p>";
         return;
       }
 
-      const { lat, lon } = coords;
-
-      resultsDiv.innerHTML = `
-        <p>קו רוחב: ${lat}</p>
-        <p>קו אורך: ${lon}</p>
-        <p>ממיר נתונים...</p>
-      `;
+      resultsDiv.innerHTML = "<p>מבצע המרה...</p>";
 
       try {
-        const res = await fetch(`https://itm-converter.onrender.com/convert?lat=${lat}&lon=${lon}`);
-        const data = await res.json();
+        const response = await fetch("https://itm-converter.onrender.com/convert", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(coords),
+        });
 
-        const { x, y } = data;
-        const govMapLink = `https://www.govmap.gov.il/?c=${x},${y}&z=10`;
+        const data = await response.json();
+
+        if (!data.itm_x || !data.itm_y) throw new Error("שגיאה בקבלת התוצאה");
 
         resultsDiv.innerHTML = `
-          <p>קו רוחב: ${lat}</p>
-          <p>קו אורך: ${lon}</p>
-          <p><strong>ITM X:</strong> ${x}</p>
-          <p><strong>ITM Y:</strong> ${y}</p>
-          <p><a href="${govMapLink}" target="_blank">פתיחה ב-GovMap</a></p>
+          <p>קו רוחב: ${coords.lat}</p>
+          <p>קו אורך: ${coords.lng}</p>
+          <p><strong>ITM X:</strong> ${data.itm_x}</p>
+          <p><strong>ITM Y:</strong> ${data.itm_y}</p>
+          <p><a href="https://www.govmap.gov.il/?x=${data.itm_x}&y=${data.itm_y}&z=10" target="_blank">פתיחה ב-GovMap</a></p>
         `;
-      } catch (err) {
-        resultsDiv.innerHTML += '<p style="color:red;">שגיאה בתקשורת עם השרת</p>';
-        console.error(err);
+      } catch (e) {
+        resultsDiv.innerHTML = "<p style='color:red;'>אירעה שגיאה: " + e.message + "</p>";
       }
     }
   </script>
