@@ -7,10 +7,10 @@ app.use(express.static('public'));
 app.use(express.json({ limit: '1mb' }));
 
 /**
- * קורא ל־API של RapidAPI ומחזיר קואורדינטות ITM.
+ * קריאה ל־RapidAPI להמרה מ-WGS84 ל-ITM.
  * @param {number} lat קו רוחב
  * @param {number} lon קו אורך
- * @returns {Promise<Object>} אובייקט התגובה מה־API
+ * @returns {Promise<Object>} אובייקט JSON עם התוצאה מה-API
  */
 function callRapidApi(lat, lon) {
   return new Promise((resolve, reject) => {
@@ -23,18 +23,24 @@ function callRapidApi(lat, lon) {
         'x-rapidapi-key': '59400d805cmshe8071a6bb086923p1fe4b4jsn9003b47efcf8'
       }
     };
+
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const parsed = JSON.parse(data);
+          resolve(parsed);
         } catch (err) {
           reject(err);
         }
       });
     });
-    req.on('error', reject);
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
     req.end();
   });
 }
@@ -42,23 +48,26 @@ function callRapidApi(lat, lon) {
 app.post('/convert', async (req, res) => {
   try {
     const input = req.body.url || '';
-    // חילוץ קווי רוחב ואורך מהקישור
+    // חילוץ lat/lon מהקישור (מזהה @32.768,.. או !3d.. !4d..)
     const match =
       input.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ||
       input.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
     if (!match) {
       return res.status(400).json({ error: 'לא נמצאו קואורדינטות תקינות' });
     }
+
     const lat = parseFloat(match[1]);
     const lon = parseFloat(match[2]);
 
-    // קריאה ל־RapidAPI לקבלת ITM
+    // קריאה ל-API לקבלת ITM
     const result = await callRapidApi(lat, lon);
 
-    // שליפת שני המספרים הראשונים מהתגובה (X, Y)
-    const values = Object.values(result).filter((val) => typeof val === 'number');
-    const itmX = values[0];
-    const itmY = values[1];
+    // חילוץ ערכים מספריים (או מחרוזות מספריות) מהתגובה
+    const numericValues = Object.values(result).filter(
+      (val) => val !== null && val !== '' && !isNaN(val)
+    );
+    const itmX = Number(numericValues[0]);
+    const itmY = Number(numericValues[1]);
 
     return res.json({
       lat,
@@ -69,11 +78,13 @@ app.post('/convert', async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: 'שגיאה פנימית או קריאה ל־API נכשלה' });
+    return res
+      .status(500)
+      .json({ error: 'שגיאה פנימית או תקלה בקריאה ל-API' });
   }
 });
 
-// שורש האתר מגיש את index.html
+// הגשת index.html בנתיב הראשי
 app.get('/', (_, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
